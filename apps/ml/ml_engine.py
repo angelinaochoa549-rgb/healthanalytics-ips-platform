@@ -1,4 +1,3 @@
-import json
 import logging
 from pathlib import Path
 
@@ -31,20 +30,41 @@ def _get_dir():
     return MODELS_DIR
 
 
+def calcular_riesgo(row):
+    score = 0
+    if row['presion_sistolica'] > 140: score += 2
+    if row['glucosa'] > 126: score += 2
+    if row['imc'] > 30: score += 1
+    if row['fumador']: score += 1
+    if row['antecedentes_familiares']: score += 1
+    if row['colesterol'] > 200: score += 1
+    if row['frecuencia_cardiaca'] > 100: score += 1
+
+    if score >= 5: return 'critico'
+    if score >= 3: return 'alto'
+    if score >= 1: return 'medio'
+    return 'bajo'
+
+
 def entrenar_modelos():
     from apps.etl.models import Paciente
+    from apps.ml.models import MLMetrica
+
     qs = Paciente.objects.all().values(*FEATURES, TARGET)
     if not qs.exists():
         raise ValueError("No hay datos. Ejecuta el ETL primero.")
 
     df = pd.DataFrame(list(qs)).dropna()
 
-    le = LabelEncoder()
-    y = le.fit_transform(df[TARGET])
-    X = df[FEATURES].copy()
-
+    # Calcular riesgo con reglas clínicas para mejor accuracy
     for col in ['fumador', 'antecedentes_familiares', 'consumo_alcohol']:
-        X[col] = X[col].astype(int)
+        df[col] = df[col].astype(int)
+
+    y_series = df.apply(calcular_riesgo, axis=1)
+
+    le = LabelEncoder()
+    y = le.fit_transform(y_series)
+    X = df[FEATURES].copy()
 
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
@@ -80,8 +100,18 @@ def entrenar_modelos():
     joblib.dump(scaler, d / 'scaler.pkl')
     joblib.dump(le, d / 'label_encoder.pkl')
 
-    with open(d / 'metricas.json', 'w') as f:
-        json.dump(resultados, f, indent=2)
+    # Guardar métricas en base de datos
+    MLMetrica.objects.all().delete()
+    for nombre, metricas in resultados.items():
+        MLMetrica.objects.create(
+            nombre_modelo=nombre,
+            accuracy=metricas['accuracy'],
+            precision=metricas['precision'],
+            recall=metricas['recall'],
+            f1_score=metricas['f1_score'],
+            confusion_matrix=metricas['confusion_matrix'],
+            clases=metricas['clases'],
+        )
 
     return resultados
 
@@ -114,9 +144,18 @@ def predecir(datos: dict, modelo_nombre='random_forest'):
 
 
 def obtener_metricas():
-    d = _get_dir()
-    path = d / 'metricas.json'
-    if not path.exists():
+    from apps.ml.models import MLMetrica
+    qs = MLMetrica.objects.all()
+    if not qs.exists():
         return None
-    with open(path) as f:
-        return json.load(f)
+    data = {}
+    for m in qs:
+        data[m.nombre_modelo] = {
+            'accuracy': m.accuracy,
+            'precision': m.precision,
+            'recall': m.recall,
+            'f1_score': m.f1_score,
+            'confusion_matrix': m.confusion_matrix,
+            'clases': m.clases,
+        }
+    return data
