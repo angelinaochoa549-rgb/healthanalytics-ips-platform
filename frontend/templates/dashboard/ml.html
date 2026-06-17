@@ -126,27 +126,44 @@ const NOMBRES = {
 
 async function trainModels() {
   const btn = document.getElementById('btnTrain');
+  const statusDiv = document.getElementById('trainStatus');
   btn.disabled = true;
   btn.textContent = '⏳ Entrenando...';
-  document.getElementById('trainStatus').style.display = 'block';
+  statusDiv.style.display = 'block';
+
+  let segundos = 35;
+  statusDiv.innerHTML = `
+    <div class="progress-bar-custom"><div class="progress-fill" style="width:100%"></div></div>
+    <small style="color:#8d99ae">Entrenando... faltan <span id="countdown">${segundos}</span> segundos</small>`;
+
+  const interval = setInterval(() => {
+    segundos--;
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = segundos;
+    if (segundos <= 0) clearInterval(interval);
+  }, 1000);
+
   try {
     await API.post('/api/ml/train/', {});
-   setTimeout(async () => {
+    setTimeout(async () => {
+      clearInterval(interval);
       await loadMetricas();
       btn.disabled = false;
       btn.textContent = '▶ Entrenar Ahora';
-      document.getElementById('trainStatus').innerHTML = `
+      statusDiv.innerHTML = `
         <div style="background:#06d6a015;border-left:4px solid #06d6a0;padding:12px 16px;border-radius:10px;margin-top:8px">
           <strong style="color:#06d6a0">✅ ¡Modelos entrenados exitosamente!</strong>
           <small style="display:block;color:#8d99ae;margin-top:4px">Random Forest · Árbol de Decisión · Regresión Logística</small>
         </div>`;
       setTimeout(() => {
-        document.getElementById('trainStatus').style.display = 'none';
+        statusDiv.style.display = 'none';
       }, 5000);
     }, 35000);
   } catch(e) {
+    clearInterval(interval);
     btn.disabled = false;
     btn.textContent = '▶ Entrenar Ahora';
+    statusDiv.style.display = 'none';
     alert('Error al entrenar: ' + e.message);
   }
 }
