@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}HealthAnalytics IPS{% endblock %}</title>
+  {% load static %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="{% static 'css/main.css' %}?v=3" rel="stylesheet">
+</head>
+<body>
+
+<div id="app" style="display:none">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🏥</div>
+      <div class="brand-text">
+        <h2>HealthAnalytics</h2>
+        <span>IPS Platform</span>
+      </div>
+    </div>
+
+    <div class="sidebar-menu">
+      <div class="menu-label">Principal</div>
+      <ul class="nav flex-column" style="list-style:none;padding:0">
+        <li class="nav-item">
+          <a class="nav-link {% block nav_dashboard %}{% endblock %}" href="/dashboard/">
+            <div class="nav-icon">📊</div>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item" id="nav-etl">
+          <a class="nav-link {% block nav_etl %}{% endblock %}" href="/etl/">
+            <div class="nav-icon">🔄</div>
+            <span>Proceso ETL</span>
+          </a>
+        </li>
+        <li class="nav-item" id="nav-pacientes">
+          <a class="nav-link {% block nav_pacientes %}{% endblock %}" href="/pacientes/">
+            <div class="nav-icon">👥</div>
+            <span>Pacientes</span>
+          </a>
+        </li>
+
+        <div class="menu-label" style="margin-top:16px">Analítica</div>
+        <li class="nav-item" id="nav-ml">
+          <a class="nav-link {% block nav_ml %}{% endblock %}" href="/ml/">
+            <div class="nav-icon">🤖</div>
+            <span>Machine Learning</span>
+          </a>
+        </li>
+        <li class="nav-item" id="nav-reportes">
+          <a class="nav-link {% block nav_reportes %}{% endblock %}" href="/reportes/">
+            <div class="nav-icon">📋</div>
+            <span>Reportes</span>
+          </a>
+        </li>
+
+        <div class="menu-label" style="margin-top:16px">Sistema</div>
+        <li class="nav-item" id="nav-docs">
+          <a class="nav-link {% block nav_docs %}{% endblock %}" href="/docs/">
+            <div class="nav-icon">📐</div>
+            <span>Documentación</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar" id="userInitial">U</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarUsername">—</div>
+          <div class="user-role" id="sidebarRole">—</div>
+        </div>
+        <button class="btn-logout" onclick="logout()" title="Cerrar sesión">
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h4>{% block page_title %}Dashboard{% endblock %}</h4>
+        <p>{% block page_subtitle %}HealthAnalytics IPS{% endblock %}</p>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-badge online">
+          <span class="dot"></span> Sistema activo
+        </div>
+        <span class="topbar-time" id="currentTime"></span>
+      </div>
+    </div>
+
+    <div class="content-area">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/api.js' %}?v=3"></script>
+{% block extra_js %}{% endblock %}
+<script>
+(function() {
+  const token = localStorage.getItem('access_token');
+  const path = window.location.pathname;
+  if (!token && path !== '/login/') {
+    window.location.replace('/login/');
+  }
+})();
+
+window.onload = function() {
+  const token = localStorage.getItem('access_token');
+  const path = window.location.pathname;
+
+  if (!token && path !== '/login/') {
+    window.location.replace('/login/');
+    return;
+  }
+
+  if (token) {
+    const app = document.getElementById('app');
+    if (app) app.style.display = 'flex';
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const rol = user.role || '';
+
+    const su = document.getElementById('sidebarUsername');
+    const sr = document.getElementById('sidebarRole');
+    const ui = document.getElementById('userInitial');
+    if (su) su.textContent = user.username || 'Usuario';
+    if (sr) sr.textContent = rol;
+    if (ui) ui.textContent = (user.username || 'U')[0].toUpperCase();
+
+    const bloqueadas = {
+      'medico': ['/etl/', '/ml/'],
+      'analista': ['/ml/'],
+    }[rol] || [];
+
+    if (bloqueadas.includes(path)) {
+      window.location.replace('/dashboard/');
+      return;
+    }
+
+    if (rol === 'medico') {
+      const e = document.getElementById('nav-etl');
+      const m = document.getElementById('nav-ml');
+      if (e) e.style.display = 'none';
+      if (m) m.style.display = 'none';
+    }
+    if (rol === 'analista') {
+      const m = document.getElementById('nav-ml');
+      if (m) m.style.display = 'none';
+    }
+  }
+
+  const elClock = document.getElementById('currentTime');
+  function clock() {
+    if (elClock) elClock.textContent = new Date().toLocaleString('es-CO', {
+      weekday:'short', day:'2-digit', month:'short',
+      hour:'2-digit', minute:'2-digit'
+    });
+  }
+  clock();
+  setInterval(clock, 30000);
+};
+
+function logout() {
+  localStorage.clear();
+  window.location.replace('/login/');
+}
+</script>
+</body>
+</html>

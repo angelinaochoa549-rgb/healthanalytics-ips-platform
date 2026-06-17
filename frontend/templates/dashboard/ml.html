@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Machine Learning — HealthAnalytics{% endblock %}
+{% block page_title %}Machine Learning{% endblock %}
+{% block page_subtitle %}Modelos predictivos de riesgo clínico{% endblock %}
+{% block nav_ml %}active{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+
+  <!-- Entrenar -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">🤖 Entrenar Modelos</span>
+    </div>
+    <p style="color:#8d99ae;font-size:.875rem;margin-bottom:16px">
+      Entrena los 3 modelos ML con los datos actuales de la BD.
+    </p>
+    <ul style="list-style:none;padding:0;margin-bottom:20px">
+      <li style="padding:8px 0;font-size:.85rem;color:#0a2463;border-bottom:1px solid #f0f4ff">🌲 Random Forest (100 árboles)</li>
+      <li style="padding:8px 0;font-size:.85rem;color:#0a2463;border-bottom:1px solid #f0f4ff">🌿 Árbol de Decisión (profundidad 8)</li>
+      <li style="padding:8px 0;font-size:.85rem;color:#0a2463">📈 Regresión Logística</li>
+    </ul>
+    <button class="btn-primary-custom" onclick="trainModels()" id="btnTrain" style="width:100%;justify-content:center">
+      ▶ Entrenar Ahora
+    </button>
+    <div id="trainStatus" style="display:none;margin-top:12px">
+      <div class="progress-bar-custom"><div class="progress-fill" style="width:100%"></div></div>
+      <small style="color:#8d99ae">Entrenando... (~30 segundos)</small>
+    </div>
+  </div>
+
+  <!-- Predicción -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">⚡ Predicción Individual</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Edad</label>
+        <input type="number" id="p_edad" class="input-modern" placeholder="45">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">IMC</label>
+        <input type="number" id="p_imc" class="input-modern" placeholder="27.5" step="0.1">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Glucosa</label>
+        <input type="number" id="p_glucosa" class="input-modern" placeholder="120">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Colesterol</label>
+        <input type="number" id="p_colesterol" class="input-modern" placeholder="200">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">P. Sistólica</label>
+        <input type="number" id="p_ps" class="input-modern" placeholder="130">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">P. Diastólica</label>
+        <input type="number" id="p_pd" class="input-modern" placeholder="85">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Frec. Cardíaca</label>
+        <input type="number" id="p_fc" class="input-modern" placeholder="75">
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Modelo</label>
+        <select id="p_modelo" class="select-modern">
+          <option value="random_forest">Random Forest</option>
+          <option value="decision_tree">Árbol Decisión</option>
+          <option value="logistic_regression">Reg. Logística</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Fumador</label>
+        <select id="p_fum" class="select-modern"><option value="0">No</option><option value="1">Sí</option></select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;font-weight:600;color:#0a2463;display:block;margin-bottom:4px">Antecedentes</label>
+        <select id="p_ant" class="select-modern"><option value="0">No</option><option value="1">Sí</option></select>
+      </div>
+    </div>
+    <button class="btn-success-custom" onclick="predict()" style="width:100%;justify-content:center">
+      🔍 Predecir Riesgo
+    </button>
+    <div id="predResult" style="display:none;margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- Métricas -->
+<div class="chart-card" style="margin-bottom:24px">
+  <div class="chart-header">
+    <span class="chart-title">📊 Métricas de Modelos</span>
+    <button class="btn-primary-custom" onclick="loadMetricas()" style="padding:8px 16px;font-size:.8rem">↻ Actualizar</button>
+  </div>
+  <div id="metricasContainer">
+    <p style="color:#8d99ae;text-align:center;padding:24px">Entrena los modelos para ver métricas.</p>
+  </div>
+</div>
+
+<!-- Matriz de confusión -->
+<div class="chart-card">
+  <div class="chart-header">
+    <span class="chart-title">🔢 Matriz de Confusión</span>
+    <select id="modeloConfusion" class="select-modern" style="width:180px" onchange="renderConfusion()">
+      <option value="random_forest">Random Forest</option>
+      <option value="decision_tree">Árbol Decisión</option>
+      <option value="logistic_regression">Reg. Logística</option>
+    </select>
+  </div>
+  <div id="confusionContainer" style="display:flex;justify-content:center">
+    <p style="color:#8d99ae;padding:24px">Entrena los modelos para ver la matriz.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let metricasGlobal = null;
+const NOMBRES = {
+  random_forest: 'Random Forest',
+  decision_tree: 'Árbol de Decisión',
+  logistic_regression: 'Regresión Logística'
+};
+
+async function trainModels() {
+  const btn = document.getElementById('btnTrain');
+  btn.disabled = true;
+  btn.textContent = '⏳ Entrenando...';
+  document.getElementById('trainStatus').style.display = 'block';
+  try {
+    await API.post('/api/ml/train/', {});
+    setTimeout(async () => {
+      await loadMetricas();
+      btn.disabled = false;
+      btn.textContent = '▶ Entrenar Ahora';
+      document.getElementById('trainStatus').style.display = 'none';
+    }, 35000);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '▶ Entrenar Ahora';
+    alert('Error al entrenar: ' + e.message);
+  }
+}
+
+async function predict() {
+  const body = {
+    edad: +document.getElementById('p_edad').value,
+    imc: +document.getElementById('p_imc').value,
+    glucosa: +document.getElementById('p_glucosa').value,
+    colesterol: +document.getElementById('p_colesterol').value,
+    presion_sistolica: +document.getElementById('p_ps').value,
+    presion_diastolica: +document.getElementById('p_pd').value,
+    frecuencia_cardiaca: +document.getElementById('p_fc').value,
+    fumador: +document.getElementById('p_fum').value,
+    antecedentes_familiares: +document.getElementById('p_ant').value,
+    consumo_alcohol: 0,
+    modelo: document.getElementById('p_modelo').value,
+  };
+  try {
+    const res = await API.post('/api/ml/predict/', body);
+    const COLORS = { bajo:'#06d6a0', medio:'#f4a261', alto:'#ef233c', critico:'#9d0208' };
+    const color = COLORS[res.riesgo_predicho] || '#1e4db7';
+    const probas = Object.entries(res.probabilidades).map(([k,v]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <small style="width:60px;font-weight:600">${k}</small>
+        <div style="flex:1;height:10px;background:#f0f4ff;border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:${(v*100).toFixed(1)}%;background:${COLORS[k]||'#1e4db7'};border-radius:5px;transition:width 1s"></div>
+        </div>
+        <small style="font-weight:700">${(v*100).toFixed(1)}%</small>
+      </div>`).join('');
+    document.getElementById('predResult').innerHTML = `
+      <div style="background:${color}15;border-left:4px solid ${color};padding:14px 16px;border-radius:10px;margin-bottom:12px">
+        <strong style="color:${color};font-size:1rem">Riesgo: ${res.riesgo_predicho.toUpperCase()}</strong>
+        <small style="display:block;color:#8d99ae;margin-top:2px">Modelo: ${res.modelo_usado}</small>
+      </div>${probas}`;
+    document.getElementById('predResult').style.display = 'block';
+  } catch(e) {
+    alert('Error: ' + e.message + '\n¿Entrenaste los modelos primero?');
+  }
+}
+
+async function loadMetricas() {
+  try {
+    const data = await API.get('/api/ml/metricas/');
+    metricasGlobal = data;
+    const html = Object.entries(data).map(([nombre, m]) => `
+      <div style="flex:1;min-width:200px">
+        <h6 style="font-weight:700;color:#0a2463;margin-bottom:12px">${NOMBRES[nombre]||nombre}</h6>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="metric-box"><div class="metric-val" style="color:#1e4db7">${(m.accuracy*100).toFixed(1)}%</div><div class="metric-label">Accuracy</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#06d6a0">${(m.precision*100).toFixed(1)}%</div><div class="metric-label">Precision</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#f4a261">${(m.recall*100).toFixed(1)}%</div><div class="metric-label">Recall</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#00b4d8">${(m.f1_score*100).toFixed(1)}%</div><div class="metric-label">F1-Score</div></div>
+        </div>
+      </div>`).join('');
+    document.getElementById('metricasContainer').innerHTML = `<div style="display:flex;gap:24px;flex-wrap:wrap">${html}</div>`;
+    renderConfusion();
+  } catch(e) {
+    document.getElementById('metricasContainer').innerHTML = '<p style="color:#8d99ae;text-align:center;padding:24px">Sin modelos entrenados aún.</p>';
+  }
+}
+
+function renderConfusion() {
+  if (!metricasGlobal) return;
+  const modelo = document.getElementById('modeloConfusion').value;
+  const m = metricasGlobal[modelo];
+  if (!m) return;
+  const cm = m.confusion_matrix;
+  const clases = m.clases;
+  const n = clases.length;
+  const max = Math.max(...cm.flat());
+  const cellSize = 80;
+  const labelW = 70;
+  const totalW = labelW + n * cellSize + 20;
+  const totalH = labelW + n * cellSize + 20;
+
+  let svg = `<svg width="${totalW}" height="${totalH}" style="font-family:Inter,sans-serif">`;
+  svg += `<text x="${labelW + n*cellSize/2}" y="16" text-anchor="middle" font-size="11" fill="#8d99ae" font-weight="600">PREDICHO</text>`;
+
+  clases.forEach((c, j) => {
+    svg += `<text x="${labelW + j*cellSize + cellSize/2}" y="${labelW - 8}" text-anchor="middle" font-size="11" fill="#0a2463" font-weight="600">${c}</text>`;
+  });
+
+  clases.forEach((c, i) => {
+    svg += `<text x="${labelW - 8}" y="${labelW + i*cellSize + cellSize/2 + 4}" text-anchor="end" font-size="11" fill="#0a2463" font-weight="600">${c}</text>`;
+    clases.forEach((_, j) => {
+      const val = cm[i][j];
+      const intensity = max > 0 ? val / max : 0;
+      const isCorrect = i === j;
+      const r = isCorrect ? Math.round(30 + (1-intensity)*170) : Math.round(220 + intensity*10);
+      const g = isCorrect ? Math.round(100 + intensity*114) : Math.round(230 - intensity*180);
+      const b = isCorrect ? Math.round(50 + (1-intensity)*150) : Math.round(230 - intensity*180);
+      const textColor = intensity > 0.5 ? '#fff' : '#333';
+      svg += `<rect x="${labelW + j*cellSize + 2}" y="${labelW + i*cellSize + 2}" width="${cellSize-4}" height="${cellSize-4}" rx="8" fill="rgb(${r},${g},${b})"/>`;
+      svg += `<text x="${labelW + j*cellSize + cellSize/2}" y="${labelW + i*cellSize + cellSize/2 + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="${textColor}">${val}</text>`;
+    });
+  });
+
+  svg += `<text x="14" y="${labelW + n*cellSize/2}" text-anchor="middle" font-size="11" fill="#8d99ae" font-weight="600" transform="rotate(-90,14,${labelW + n*cellSize/2})">REAL</text>`;
+  svg += '</svg>';
+  document.getElementById('confusionContainer').innerHTML = svg;
+}
+
+document.addEventListener('DOMContentLoaded', loadMetricas);
+</script>
+{% endblock %}

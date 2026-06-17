@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Reportes — HealthAnalytics{% endblock %}
+{% block page_title %}Exportación de Reportes{% endblock %}
+{% block page_subtitle %}Descarga datos clínicos en diferentes formatos{% endblock %}
+{% block nav_reportes %}active{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:32px">
+
+  <!-- PDF -->
+  <div class="chart-card" style="text-align:center">
+    <div style="width:72px;height:72px;background:linear-gradient(135deg,#ef233c,#9d0208);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 16px;box-shadow:0 8px 24px rgba(239,35,60,0.3)">
+      📄
+    </div>
+    <h5 style="font-weight:700;color:#0a2463;margin-bottom:8px">Reporte PDF</h5>
+    <p style="color:#8d99ae;font-size:.85rem;margin-bottom:24px;line-height:1.6">
+      Genera un reporte PDF profesional con la tabla de pacientes clínicos. Incluye hasta 500 registros.
+    </p>
+    <button onclick="descargar('/api/reports/pdf/', 'reporte_clinico.pdf')"
+      class="btn-danger-custom" style="border:none;cursor:pointer;padding:12px 24px;border-radius:10px;display:inline-flex;align-items:center;gap:8px">
+      ⬇ Descargar PDF
+    </button>
+  </div>
+
+  <!-- EXCEL -->
+  <div class="chart-card" style="text-align:center">
+    <div style="width:72px;height:72px;background:linear-gradient(135deg,#06d6a0,#048a81);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 16px;box-shadow:0 8px 24px rgba(6,214,160,0.3)">
+      📊
+    </div>
+    <h5 style="font-weight:700;color:#0a2463;margin-bottom:8px">Reporte Excel</h5>
+    <p style="color:#8d99ae;font-size:.85rem;margin-bottom:24px;line-height:1.6">
+      Exporta todos los pacientes a formato .xlsx con formato clínico y colores por nivel de riesgo.
+    </p>
+    <button onclick="descargar('/api/reports/excel/', 'pacientes_clinicos.xlsx')"
+      class="btn-success-custom" style="border:none;cursor:pointer;padding:12px 24px;border-radius:10px;display:inline-flex;align-items:center;gap:8px">
+      ⬇ Descargar Excel
+    </button>
+  </div>
+
+  <!-- CSV -->
+  <div class="chart-card" style="text-align:center">
+    <div style="width:72px;height:72px;background:linear-gradient(135deg,#1e4db7,#0a2463);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 16px;box-shadow:0 8px 24px rgba(30,77,183,0.3)">
+      📋
+    </div>
+    <h5 style="font-weight:700;color:#0a2463;margin-bottom:8px">Datos CSV</h5>
+    <p style="color:#8d99ae;font-size:.85rem;margin-bottom:24px;line-height:1.6">
+      Descarga el dataset clínico limpio y procesado en formato CSV para análisis externo.
+    </p>
+    <button onclick="descargar('/api/reports/csv/', 'pacientes_clinicos.csv')"
+      class="btn-primary-custom" style="border:none;cursor:pointer;padding:12px 24px;border-radius:10px;display:inline-flex;align-items:center;gap:8px">
+      ⬇ Descargar CSV
+    </button>
+  </div>
+</div>
+
+<!-- RESUMEN -->
+<div class="chart-card">
+  <div class="chart-header">
+    <span class="chart-title">📈 Resumen del Sistema</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px" id="resumenContainer">
+    <p style="color:#8d99ae;grid-column:1/-1;text-align:center;padding:24px">Cargando...</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function descargar(url, filename) {
+  try {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) { alert('Error al descargar. Verifica tu sesión.'); return; }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function loadResumen() {
+  try {
+    const kpis = await API.get('/api/analytics/kpis/');
+    const summary = await API.get('/api/dashboard/summary/');
+    document.getElementById('resumenContainer').innerHTML = `
+      <div class="metric-box">
+        <div class="metric-val" style="color:#1e4db7">${kpis.total_pacientes.toLocaleString()}</div>
+        <div class="metric-label">Total Pacientes</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:#ef233c">${kpis.pacientes_criticos.toLocaleString()}</div>
+        <div class="metric-label">Pacientes Críticos</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:#06d6a0">${summary.etl_ejecutados}</div>
+        <div class="metric-label">ETL Ejecutados</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:#f4a261">${summary.modelos_entrenados.length}</div>
+        <div class="metric-label">Modelos ML</div>
+      </div>`;
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', loadResumen);
+</script>
+{% endblock %}

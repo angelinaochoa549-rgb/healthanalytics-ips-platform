@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Pacientes — HealthAnalytics{% endblock %}
+{% block page_title %}Gestión de Pacientes{% endblock %}
+{% block page_subtitle %}1800 registros clínicos{% endblock %}
+{% block nav_pacientes %}active{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  <div class="table-header">
+    <span class="table-title">👥 Listado de Pacientes</span>
+    <div style="display:flex;gap:10px">
+      <input type="search" id="searchInput" class="input-modern"
+        placeholder="Buscar nombre, diagnóstico..." style="width:240px">
+      <select id="riesgoFilter" class="select-modern" style="width:140px">
+        <option value="">Todos los riesgos</option>
+        <option value="bajo">Bajo</option>
+        <option value="medio">Medio</option>
+        <option value="alto">Alto</option>
+        <option value="critico">Crítico</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Edad</th><th>Sexo</th>
+          <th>IMC</th><th>Glucosa</th><th>P. Sistólica</th>
+          <th>Diagnóstico</th><th>Riesgo</th><th>Crítico</th><th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody id="pacientesBody">
+        <tr><td colspan="11" style="text-align:center;padding:48px">
+          <div style="width:36px;height:36px;border:3px solid #e8eeff;border-top-color:#1e4db7;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px"></div>
+          Cargando pacientes...
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid #f0f4ff">
+    <small style="color:#8d99ae" id="paginaInfo">—</small>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary-custom" id="btnPrev" onclick="changePage(-1)"
+        style="padding:8px 16px;font-size:.8rem">← Anterior</button>
+      <button class="btn-primary-custom" id="btnNext" onclick="changePage(1)"
+        style="padding:8px 16px;font-size:.8rem">Siguiente →</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BADGES = { bajo:'badge-bajo', medio:'badge-medio', alto:'badge-alto', critico:'badge-critico' };
+let page = 1, totalPages = 1, search = '', riesgo = '';
+
+async function loadPacientes() {
+  try {
+    let url = `/api/etl/pacientes/?page=${page}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (riesgo) url += `&riesgo=${riesgo}`;
+
+    const data = await API.get(url);
+    const items = data.results || [];
+    totalPages = Math.ceil((data.count || items.length) / 50);
+
+    const tbody = document.getElementById('pacientesBody');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:48px;color:#8d99ae">Sin resultados</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = items.map(p => `
+      <tr>
+        <td><small style="color:#8d99ae">${p.id_paciente}</small></td>
+        <td><strong>${p.nombres} ${p.apellidos}</strong></td>
+        <td>${p.edad}</td>
+        <td>${p.sexo === 'M' ? '♂ M' : '♀ F'}</td>
+        <td><span style="background:#f0f4ff;padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600">${p.imc}</span></td>
+        <td>${p.glucosa}</td>
+        <td style="color:${p.presion_sistolica > 140 ? '#ef233c' : 'inherit'};font-weight:${p.presion_sistolica > 140 ? '700' : '400'}">${p.presion_sistolica}</td>
+        <td><small>${p.diagnostico_preliminar}</small></td>
+        <td><span class="badge ${BADGES[p.riesgo_enfermedad]||''}">${p.riesgo_enfermedad}</span></td>
+        <td>${p.es_critico ? '<span class="badge badge-critico">🚨 Crítico</span>' : '<span style="color:#8d99ae">—</span>'}</td>
+        <td><small>${p.fecha_consulta}</small></td>
+      </tr>`).join('');
+
+    document.getElementById('paginaInfo').textContent = `Página ${page} de ${totalPages} · ${data.count} pacientes`;
+    document.getElementById('btnPrev').disabled = page <= 1;
+    document.getElementById('btnNext').disabled = page >= totalPages;
+  } catch(e) { console.error(e); }
+}
+
+function changePage(dir) {
+  page = Math.max(1, Math.min(totalPages, page + dir));
+  loadPacientes();
+}
+
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => { search = e.target.value; page = 1; loadPacientes(); }, 400);
+});
+
+document.getElementById('riesgoFilter').addEventListener('change', e => {
+  riesgo = e.target.value; page = 1; loadPacientes();
+});
+
+document.addEventListener('DOMContentLoaded', loadPacientes);
+</script>
+{% endblock %}

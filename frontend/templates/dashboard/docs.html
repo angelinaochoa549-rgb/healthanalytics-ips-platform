@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Documentación — HealthAnalytics{% endblock %}
+{% block page_title %}Documentación Técnica{% endblock %}
+{% block page_subtitle %}ERD, Arquitectura y Flujo ETL{% endblock %}
+{% block nav_docs %}active{% endblock %}
+
+{% block content %}
+
+<!-- TABS -->
+<div style="display:flex;gap:8px;margin-bottom:24px">
+  <button onclick="showTab('erd')" id="tab-erd" class="btn-primary-custom">🗃 Modelo ERD</button>
+  <button onclick="showTab('arch')" id="tab-arch" style="background:#f0f4ff;color:#1e4db7;border:none;padding:10px 22px;border-radius:10px;font-weight:600;cursor:pointer">🏗 Arquitectura</button>
+  <button onclick="showTab('etl')" id="tab-etl" style="background:#f0f4ff;color:#1e4db7;border:none;padding:10px 22px;border-radius:10px;font-weight:600;cursor:pointer">🔄 Flujo ETL</button>
+  <button onclick="showTab('apis')" id="tab-apis" style="background:#f0f4ff;color:#1e4db7;border:none;padding:10px 22px;border-radius:10px;font-weight:600;cursor:pointer">📡 APIs REST</button>
+</div>
+
+<!-- ERD -->
+<div id="tab-erd-content" class="chart-card">
+  <div class="chart-header">
+    <span class="chart-title">🗃 Modelo Relacional — Entity Relationship Diagram</span>
+  </div>
+  <div id="erd-container" style="overflow-x:auto"></div>
+</div>
+
+<!-- ARQUITECTURA -->
+<div id="tab-arch-content" class="chart-card" style="display:none">
+  <div class="chart-header">
+    <span class="chart-title">🏗 Arquitectura del Sistema</span>
+  </div>
+  <div id="arch-container" style="overflow-x:auto"></div>
+</div>
+
+<!-- FLUJO ETL -->
+<div id="tab-etl-content" class="chart-card" style="display:none">
+  <div class="chart-header">
+    <span class="chart-title">🔄 Flujo del Proceso ETL</span>
+  </div>
+  <div id="etl-container" style="overflow-x:auto"></div>
+</div>
+
+<!-- APIs -->
+<div id="tab-apis-content" class="chart-card" style="display:none">
+  <div class="chart-header">
+    <span class="chart-title">📡 APIs REST Disponibles</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="modern-table">
+      <thead>
+        <tr><th>Endpoint</th><th>Método</th><th>Descripción</th><th>Auth</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>/api/auth/login/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Login — devuelve token JWT</td><td>❌</td></tr>
+        <tr><td><code>/api/auth/refresh/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Refrescar token JWT</td><td>❌</td></tr>
+        <tr><td><code>/api/auth/me/</code></td><td><span class="badge badge-medio">GET</span></td><td>Info del usuario actual</td><td>✅</td></tr>
+        <tr><td><code>/api/etl/run/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Ejecutar ETL automático</td><td>✅</td></tr>
+        <tr><td><code>/api/etl/upload/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Subir CSV y ejecutar ETL</td><td>✅</td></tr>
+        <tr><td><code>/api/etl/logs/</code></td><td><span class="badge badge-medio">GET</span></td><td>Historial de procesos ETL</td><td>✅</td></tr>
+        <tr><td><code>/api/etl/pacientes/</code></td><td><span class="badge badge-medio">GET</span></td><td>Listado paginado de pacientes</td><td>✅</td></tr>
+        <tr><td><code>/api/analytics/kpis/</code></td><td><span class="badge badge-medio">GET</span></td><td>KPIs médicos generales</td><td>✅</td></tr>
+        <tr><td><code>/api/analytics/estadisticas/</code></td><td><span class="badge badge-medio">GET</span></td><td>Estadística descriptiva</td><td>✅</td></tr>
+        <tr><td><code>/api/analytics/criticos/</code></td><td><span class="badge badge-medio">GET</span></td><td>Pacientes críticos</td><td>✅</td></tr>
+        <tr><td><code>/api/ml/train/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Entrenar modelos ML</td><td>✅</td></tr>
+        <tr><td><code>/api/ml/predict/</code></td><td><span class="badge badge-bajo">POST</span></td><td>Predicción individual</td><td>✅</td></tr>
+        <tr><td><code>/api/ml/metricas/</code></td><td><span class="badge badge-medio">GET</span></td><td>Métricas de modelos</td><td>✅</td></tr>
+        <tr><td><code>/api/reports/pdf/</code></td><td><span class="badge badge-medio">GET</span></td><td>Exportar PDF</td><td>✅</td></tr>
+        <tr><td><code>/api/reports/excel/</code></td><td><span class="badge badge-medio">GET</span></td><td>Exportar Excel</td><td>✅</td></tr>
+        <tr><td><code>/api/reports/csv/</code></td><td><span class="badge badge-medio">GET</span></td><td>Exportar CSV</td><td>✅</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: 'Inter, sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+});
+
+// ERD
+const { svg: erdSvg } = await mermaid.render('erd-svg', `erDiagram
+  authentication_user {
+    bigint id PK
+    string username
+    string email
+    string password
+    string role
+    datetime created_at
+    boolean is_active
+  }
+  etl_paciente {
+    bigint id PK
+    int id_paciente
+    string nombres
+    string apellidos
+    int edad
+    char sexo
+    float peso
+    float altura
+    float imc
+    string clasificacion_imc
+    int presion_sistolica
+    int presion_diastolica
+    int frecuencia_cardiaca
+    float glucosa
+    float colesterol
+    float saturacion_oxigeno
+    float temperatura
+    boolean antecedentes_familiares
+    boolean fumador
+    boolean consumo_alcohol
+    string actividad_fisica
+    string diagnostico_preliminar
+    string riesgo_enfermedad
+    boolean es_critico
+    date fecha_consulta
+    datetime created_at
+  }
+  etl_etllog {
+    bigint id PK
+    bigint usuario_id FK
+    datetime fecha_inicio
+    datetime fecha_fin
+    string estado
+    int registros_extraidos
+    int registros_transformados
+    int registros_cargados
+    int registros_duplicados
+    int registros_invalidos
+    float tiempo_ejecucion
+    string archivo_fuente
+    text log_detalle
+    text error_mensaje
+  }
+  authentication_user ||--o{ etl_etllog : "ejecuta"
+`);
+document.getElementById('erd-container').innerHTML = erdSvg;
+
+// ARQUITECTURA
+const { svg: archSvg } = await mermaid.render('arch-svg', `graph TD
+  A[🌐 Frontend Web<br/>HTML5 + Bootstrap 5 + Chart.js] -->|REST APIs JWT| B[Django Backend]
+  B --> C[Authentication<br/>JWT + Roles]
+  B --> D[ETL Engine<br/>Pandas + NumPy]
+  B --> E[Analytics Module<br/>KPIs + Estadísticas]
+  B --> F[ML Module<br/>Scikit-learn]
+  B --> G[Reports Module<br/>PDF + Excel + CSV]
+  D -->|datos limpios| H[(PostgreSQL<br/>healthanalytics_db)]
+  E --> H
+  F --> H
+  C --> H
+`);
+document.getElementById('arch-container').innerHTML = archSvg;
+
+// FLUJO ETL
+const { svg: etlSvg } = await mermaid.render('etl-svg', `flowchart TD
+  A([📁 Dataset Excel/CSV<br/>1800 registros]) --> B[EXTRACT<br/>Leer archivo]
+  B --> C{Validar formato}
+  C -->|válido| D[TRANSFORM<br/>Eliminar duplicados]
+  C -->|inválido| ERR([❌ Error log])
+  D --> E[Corregir tipos de datos]
+  E --> F[Imputar valores nulos]
+  F --> G[Normalizar diagnósticos]
+  G --> H[Calcular IMC]
+  H --> I[Clasificar riesgo]
+  I --> J[Detectar críticos]
+  J --> K[LOAD<br/>Insertar en PostgreSQL]
+  K --> L[Registrar ETL Log]
+  L --> M([✅ ETL Completado])
+`);
+document.getElementById('etl-container').innerHTML = etlSvg;
+</script>
+
+<script>
+function showTab(tab) {
+  ['erd','arch','etl','apis'].forEach(t => {
+    document.getElementById('tab-'+t+'-content').style.display = t === tab ? 'block' : 'none';
+    const btn = document.getElementById('tab-'+t);
+    if (btn) {
+      btn.style.background = t === tab ? 'linear-gradient(135deg,#1e4db7,#0a2463)' : '#f0f4ff';
+      btn.style.color = t === tab ? 'white' : '#1e4db7';
+    }
+  });
+}
+</script>
+{% endblock %}

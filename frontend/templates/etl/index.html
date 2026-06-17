@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}ETL — HealthAnalytics{% endblock %}
+{% block page_title %}Proceso ETL{% endblock %}
+{% block page_subtitle %}Extracción, Transformación y Carga{% endblock %}
+{% block nav_etl %}active{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+  <!-- Ejecutar ETL -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">🔄 Ejecutar ETL Automático</span>
+    </div>
+    <p style="color:#8d99ae;font-size:.875rem;margin-bottom:20px">
+      Procesa el dataset clínico Excel con 1800 registros automáticamente.
+    </p>
+    <button class="btn-primary-custom" id="btnRunEtl" onclick="runEtl()" style="width:100%;justify-content:center">
+      ▶ Ejecutar ETL
+    </button>
+    <div id="etlProgress" style="display:none;margin-top:16px">
+      <div class="progress-bar-custom">
+        <div class="progress-fill" style="width:100%;animation:none;background:linear-gradient(90deg,#1e4db7,#00b4d8)"></div>
+      </div>
+      <p style="font-size:.78rem;color:#8d99ae;margin-top:8px" id="etlProgressText">Procesando...</p>
+    </div>
+  </div>
+
+  <!-- Subir CSV -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">📁 Cargar CSV Manual</span>
+    </div>
+    <p style="color:#8d99ae;font-size:.875rem;margin-bottom:20px">
+      Sube un archivo CSV con datos clínicos para ejecutar el ETL.
+    </p>
+    <input type="file" id="csvFile" accept=".csv" class="input-modern" style="margin-bottom:12px">
+    <button class="btn-success-custom" onclick="uploadCsv()" style="width:100%;justify-content:center">
+      ☁ Subir y Procesar
+    </button>
+    <div id="uploadStatus" style="display:none;margin-top:12px;font-size:.8rem;color:#8d99ae"></div>
+  </div>
+</div>
+
+<!-- Log ETL -->
+<div class="chart-card" id="etlLogCard" style="display:none;margin-bottom:24px">
+  <div class="chart-header">
+    <span class="chart-title">📋 Resultado del ETL</span>
+  </div>
+  <div id="etlSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px"></div>
+  <pre id="etlLogText" style="background:#0d1b2a;color:#06d6a0;padding:16px;border-radius:12px;font-size:.78rem;max-height:250px;overflow-y:auto;line-height:1.6"></pre>
+</div>
+
+<!-- Historial -->
+<div class="table-card">
+  <div class="table-header">
+    <span class="table-title">📅 Historial de Procesos ETL</span>
+    <button class="btn-primary-custom" onclick="loadHistorial()" style="padding:8px 16px;font-size:.8rem">
+      ↻ Actualizar
+    </button>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Fecha</th><th>Usuario</th><th>Estado</th>
+          <th>Extraídos</th><th>Cargados</th><th>Duplicados</th><th>Tiempo</th>
+        </tr>
+      </thead>
+      <tbody id="historialBody">
+        <tr><td colspan="8" style="text-align:center;padding:32px;color:#8d99ae">Sin registros aún</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function runEtl() {
+  const btn = document.getElementById('btnRunEtl');
+  btn.disabled = true;
+  btn.textContent = '⏳ Iniciando...';
+  document.getElementById('etlProgress').style.display = 'block';
+  try {
+    const res = await API.post('/api/etl/run/', {});
+    document.getElementById('etlProgressText').textContent = `ETL iniciado (log #${res.log_id}). Procesando...`;
+    pollLog(res.log_id);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '▶ Ejecutar ETL';
+    alert('Error al iniciar ETL');
+  }
+}
+
+async function pollLog(logId) {
+  let intentos = 0;
+  const interval = setInterval(async () => {
+    try {
+      const log = await API.get(`/api/etl/logs/${logId}/`);
+      document.getElementById('etlProgressText').textContent = `Estado: ${log.estado} | Cargados: ${log.registros_cargados}`;
+      if (log.estado === 'completado' || log.estado === 'error') {
+        clearInterval(interval);
+        document.getElementById('btnRunEtl').disabled = false;
+        document.getElementById('btnRunEtl').textContent = '▶ Ejecutar ETL';
+        showLog(log);
+        loadHistorial();
+      }
+    } catch(e) {}
+    if (++intentos > 60) clearInterval(interval);
+  }, 2000);
+}
+
+function showLog(log) {
+  const card = document.getElementById('etlLogCard');
+  card.style.display = 'block';
+  document.getElementById('etlSummary').innerHTML = `
+    <div class="metric-box"><div class="metric-val" style="color:#1e4db7">${log.registros_extraidos}</div><div class="metric-label">Extraídos</div></div>
+    <div class="metric-box"><div class="metric-val" style="color:#06d6a0">${log.registros_cargados}</div><div class="metric-label">Cargados</div></div>
+    <div class="metric-box"><div class="metric-val" style="color:#f4a261">${log.registros_duplicados}</div><div class="metric-label">Duplicados</div></div>
+    <div class="metric-box"><div class="metric-val" style="color:#00b4d8">${log.duracion || '—'}</div><div class="metric-label">Duración</div></div>`;
+  document.getElementById('etlLogText').textContent = log.log_detalle || log.error_mensaje || 'Sin detalles';
+}
+
+async function uploadCsv() {
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) { alert('Selecciona un archivo CSV primero'); return; }
+
+  const token = localStorage.getItem('access_token');
+  if (!token) { alert('No hay sesión activa'); return; }
+
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '⏳ Subiendo archivo...';
+
+  const form = new FormData();
+  form.append('archivo', file);
+
+  try {
+    const res = await fetch('/api/etl/upload/', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      statusEl.textContent = '❌ Error: ' + (err.error || 'No se pudo subir');
+      return;
+    }
+
+    const data = await res.json();
+    statusEl.textContent = `✅ Archivo subido. ETL iniciado (log #${data.log_id})`;
+    pollLog(data.log_id);
+  } catch(e) {
+    statusEl.textContent = '❌ Error: ' + e.message;
+  }
+}
+
+async function loadHistorial() {
+  try {
+    const logs = await API.get('/api/etl/logs/');
+    const tbody = document.getElementById('historialBody');
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#8d99ae">Sin registros</td></tr>';
+      return;
+    }
+    const BADGES = { completado:'badge-completado', error:'badge-error', en_proceso:'badge-en_proceso', iniciado:'badge-en_proceso' };
+    tbody.innerHTML = logs.map(l => `
+      <tr>
+        <td><strong>${l.id}</strong></td>
+        <td>${l.fecha_inicio?.slice(0,16).replace('T',' ')}</td>
+        <td>${l.usuario_nombre || '—'}</td>
+        <td><span class="badge ${BADGES[l.estado]||''}">${l.estado}</span></td>
+        <td>${l.registros_extraidos}</td>
+        <td>${l.registros_cargados}</td>
+        <td>${l.registros_duplicados}</td>
+        <td>${l.duracion || '—'}</td>
+      </tr>`).join('');
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', loadHistorial);
+</script>
+{% endblock %}

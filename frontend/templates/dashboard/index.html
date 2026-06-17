@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Dashboard — HealthAnalytics{% endblock %}
+{% block page_title %}Dashboard Clínico{% endblock %}
+{% block page_subtitle %}Resumen general del sistema{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+
+<!-- KPI GRID -->
+<div class="kpi-grid">
+  <div class="kpi-card" style="--kpi-color:#1e4db7;--kpi-bg:#e8eeff">
+    <div class="kpi-icon">👥</div>
+    <div>
+      <div class="kpi-label">Total Pacientes</div>
+      <div class="kpi-value" id="kv-total">—</div>
+      <div class="kpi-sub">Registros en BD</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#ef233c;--kpi-bg:#fff0f2">
+    <div class="kpi-icon">🚨</div>
+    <div>
+      <div class="kpi-label">Pacientes Críticos</div>
+      <div class="kpi-value" id="kv-criticos" style="color:#ef233c">—</div>
+      <div class="kpi-sub">Requieren atención</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#f4a261;--kpi-bg:#fff8f0">
+    <div class="kpi-icon">❤️</div>
+    <div>
+      <div class="kpi-label">Hipertensos</div>
+      <div class="kpi-value" id="kv-hipertensos" style="color:#f4a261">—</div>
+      <div class="kpi-sub">Presión sistólica > 140</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#00b4d8;--kpi-bg:#e0f7ff">
+    <div class="kpi-icon">🩸</div>
+    <div>
+      <div class="kpi-label">Diabéticos</div>
+      <div class="kpi-value" id="kv-diabeticos" style="color:#00b4d8">—</div>
+      <div class="kpi-sub">Glucosa > 126</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#06d6a0;--kpi-bg:#e6fff8">
+    <div class="kpi-icon">🚬</div>
+    <div>
+      <div class="kpi-label">Fumadores</div>
+      <div class="kpi-value" id="kv-fumadores" style="color:#06d6a0">—</div>
+      <div class="kpi-sub">Pacientes fumadores</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#6c757d;--kpi-bg:#f5f5f5">
+    <div class="kpi-icon">⚖️</div>
+    <div>
+      <div class="kpi-label">Obesidad</div>
+      <div class="kpi-value" id="kv-obesos">—</div>
+      <div class="kpi-sub">IMC ≥ 30</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#1e4db7;--kpi-bg:#e8eeff">
+    <div class="kpi-icon">📏</div>
+    <div>
+      <div class="kpi-label">Edad Promedio</div>
+      <div class="kpi-value" id="kv-edad">—</div>
+      <div class="kpi-sub">Años</div>
+    </div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#ef233c;--kpi-bg:#fff0f2">
+    <div class="kpi-icon">💉</div>
+    <div>
+      <div class="kpi-label">P. Sistólica Prom.</div>
+      <div class="kpi-value" id="kv-presion">—</div>
+      <div class="kpi-sub">mmHg promedio</div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS ROW 1 -->
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;margin-bottom:20px">
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Riesgo Clínico</span>
+      <span class="chart-badge">Distribución</span>
+    </div>
+    <canvas id="chartRiesgo" height="240"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Consultas por Mes</span>
+      <span class="chart-badge">Tendencia</span>
+    </div>
+    <canvas id="chartTendencia" height="240"></canvas>
+  </div>
+</div>
+
+<!-- CHARTS ROW 2 -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Clasificación IMC</span>
+    </div>
+    <canvas id="chartImc" height="200"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Por Sexo</span>
+    </div>
+    <canvas id="chartSexo" height="200"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Grupos de Edad</span>
+    </div>
+    <canvas id="chartEdad" height="200"></canvas>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDashboard() {
+  try {
+    const kpis = await API.get('/api/analytics/kpis/');
+    document.getElementById('kv-total').textContent = kpis.total_pacientes.toLocaleString();
+    document.getElementById('kv-criticos').textContent = kpis.pacientes_criticos.toLocaleString();
+    document.getElementById('kv-hipertensos').textContent = kpis.pacientes_hipertensos.toLocaleString();
+    document.getElementById('kv-diabeticos').textContent = kpis.pacientes_diabeticos.toLocaleString();
+    document.getElementById('kv-fumadores').textContent = kpis.pacientes_fumadores.toLocaleString();
+    document.getElementById('kv-obesos').textContent = kpis.pacientes_obesos.toLocaleString();
+    document.getElementById('kv-edad').textContent = kpis.edad_promedio;
+    document.getElementById('kv-presion').textContent = kpis.presion_sistolica_promedio;
+
+    // Gráfica riesgo
+    new Chart(document.getElementById('chartRiesgo'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Bajo', 'Medio', 'Alto', 'Crítico'],
+        datasets: [{
+          data: [kpis.riesgo_bajo, kpis.riesgo_medio, kpis.riesgo_alto, kpis.riesgo_critico],
+          backgroundColor: ['#06d6a0', '#f4a261', '#ef233c', '#9d0208'],
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        cutout: '65%',
+        plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } } }
+      }
+    });
+
+    // Tendencia
+    const tend = await API.get('/api/analytics/tendencia/');
+    new Chart(document.getElementById('chartTendencia'), {
+      type: 'line',
+      data: {
+        labels: tend.map(r => r.mes),
+        datasets: [{
+          label: 'Consultas',
+          data: tend.map(r => r.total),
+          borderColor: '#1e4db7',
+          backgroundColor: 'rgba(30,77,183,0.08)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#1e4db7',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        scales: { y: { beginAtZero: true, grid: { color: '#f0f4ff' } }, x: { grid: { display: false } } },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // IMC
+    const imcData = await API.get('/api/analytics/imc/');
+    new Chart(document.getElementById('chartImc'), {
+      type: 'bar',
+      data: {
+        labels: imcData.map(r => r.clasificacion_imc),
+        datasets: [{
+          data: imcData.map(r => r.total),
+          backgroundColor: ['#00b4d8','#06d6a0','#f4a261','#ef233c'],
+          borderRadius: 8,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, grid: { color: '#f0f4ff' } }, x: { grid: { display: false } } }
+      }
+    });
+
+    // Sexo
+    const sexoData = await API.get('/api/analytics/sexo/');
+    new Chart(document.getElementById('chartSexo'), {
+      type: 'pie',
+      data: {
+        labels: sexoData.map(r => r.sexo === 'M' ? 'Masculino' : 'Femenino'),
+        datasets: [{
+          data: sexoData.map(r => r.total),
+          backgroundColor: ['#1e4db7', '#e83e8c'],
+          borderWidth: 0,
+        }]
+      },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Edad
+    const edadData = await API.get('/api/analytics/edad/');
+    new Chart(document.getElementById('chartEdad'), {
+      type: 'bar',
+      data: {
+        labels: edadData.map(r => r.grupo),
+        datasets: [{
+          data: edadData.map(r => r.total),
+          backgroundColor: '#6f42c1',
+          borderRadius: 8,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: '#f0f4ff' } }, y: { grid: { display: false } } }
+      }
+    });
+
+  } catch(err) {
+    console.error(err);
+    if (err.status === 401) window.location.href = '/login/';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+{% endblock %}
