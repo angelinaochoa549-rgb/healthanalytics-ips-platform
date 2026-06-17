@@ -161,10 +161,11 @@ async function predict() {
   try {
     const res = await API.post('/api/ml/predict/', body);
     const COLORS = { bajo:'#06d6a0', medio:'#f4a261', alto:'#ef233c', critico:'#9d0208' };
+    const TRADUCCIONES = { bajo:'Bajo', medio:'Medio', alto:'Alto', critico:'Crítico' };
     const color = COLORS[res.riesgo_predicho] || '#1e4db7';
     const probas = Object.entries(res.probabilidades).map(([k,v]) => `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <small style="width:60px;font-weight:600">${k}</small>
+        <small style="width:60px;font-weight:600">${TRADUCCIONES[k]||k}</small>
         <div style="flex:1;height:10px;background:#f0f4ff;border-radius:5px;overflow:hidden">
           <div style="height:100%;width:${(v*100).toFixed(1)}%;background:${COLORS[k]||'#1e4db7'};border-radius:5px;transition:width 1s"></div>
         </div>
@@ -172,8 +173,8 @@ async function predict() {
       </div>`).join('');
     document.getElementById('predResult').innerHTML = `
       <div style="background:${color}15;border-left:4px solid ${color};padding:14px 16px;border-radius:10px;margin-bottom:12px">
-        <strong style="color:${color};font-size:1rem">Riesgo: ${res.riesgo_predicho.toUpperCase()}</strong>
-        <small style="display:block;color:#8d99ae;margin-top:2px">Modelo: ${res.modelo_usado}</small>
+        <strong style="color:${color};font-size:1rem">Riesgo: ${TRADUCCIONES[res.riesgo_predicho]||res.riesgo_predicho}</strong>
+        <small style="display:block;color:#8d99ae;margin-top:2px">Modelo: ${NOMBRES[res.modelo_usado]||res.modelo_usado}</small>
       </div>${probas}`;
     document.getElementById('predResult').style.display = 'block';
   } catch(e) {
@@ -189,10 +190,10 @@ async function loadMetricas() {
       <div style="flex:1;min-width:200px">
         <h6 style="font-weight:700;color:#0a2463;margin-bottom:12px">${NOMBRES[nombre]||nombre}</h6>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="metric-box"><div class="metric-val" style="color:#1e4db7">${(m.Exactitud*100).toFixed(1)}%</div><div class="metric-label">Accuracy</div></div>
-          <div class="metric-box"><div class="metric-val" style="color:#06d6a0">${(m.Precisión*100).toFixed(1)}%</div><div class="metric-label">Precision</div></div>
-          <div class="metric-box"><div class="metric-val" style="color:#f4a261">${(m.Sensibilidad*100).toFixed(1)}%</div><div class="metric-label">Recall</div></div>
-          <div class="metric-box"><div class="metric-val" style="color:#00b4d8">${(m.Puntuación*100).toFixed(1)}%</div><div class="metric-label">F1-Score</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#1e4db7">${(m.accuracy*100).toFixed(1)}%</div><div class="metric-label">Exactitud</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#06d6a0">${(m.precision*100).toFixed(1)}%</div><div class="metric-label">Precisión</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#f4a261">${(m.recall*100).toFixed(1)}%</div><div class="metric-label">Sensibilidad</div></div>
+          <div class="metric-box"><div class="metric-val" style="color:#00b4d8">${(m.f1_score*100).toFixed(1)}%</div><div class="metric-label">Puntuación F1</div></div>
         </div>
       </div>`).join('');
     document.getElementById('metricasContainer').innerHTML = `<div style="display:flex;gap:24px;flex-wrap:wrap">${html}</div>`;
