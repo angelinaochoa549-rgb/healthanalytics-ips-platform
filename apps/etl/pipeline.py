@@ -2,14 +2,14 @@ import time
 import logging
 from datetime import datetime, date
 from pathlib import Path
-
+ 
 import numpy as np
 import pandas as pd
 from django.conf import settings
 from django.utils import timezone
-
+ 
 logger = logging.getLogger(__name__)
-
+ 
 RANGOS_CLINICOS = {
     'edad':              (0, 120),
     'peso':              (10, 300),
@@ -22,7 +22,7 @@ RANGOS_CLINICOS = {
     'saturacion_oxigeno':(50, 100),
     'temperatura':       (30, 45),
 }
-
+ 
 MAP_DIAGNOSTICOS = {
     'hipertencion':          'Hipertensión',
     'hipertensíon':          'Hipertensión',
@@ -31,35 +31,35 @@ MAP_DIAGNOSTICOS = {
     'insuficiencia cardiaca':'Insuficiencia cardíaca',
     'sin diagnóstico':       'Sano',
 }
-
+ 
 MAP_ACTIVIDAD = {
     'sedentario': 'sedentario', 'sédentario': 'sedentario',
     'leve': 'leve', 'levee': 'leve',
     'moderado': 'moderado', 'moderadoo': 'moderado',
     'intenso': 'intenso', 'intensoo': 'intenso',
 }
-
+ 
 EDADES_TEXTO = {
     'treinta': 30, 'cuarenta y cinco': 45,
     'veinte': 20, 'cincuenta': 50, 'sesenta y dos': 62,
 }
-
-
+ 
+ 
 class ETLPipeline:
-
+ 
     def __init__(self, log_instance):
         self.log = log_instance
         self.detalles = []
         self.df_raw = None
         self.df_clean = None
-
+ 
     # ── EXTRACT ──
     def extract(self, archivo=None):
         self._log("=== FASE EXTRACT ===")
         start = time.time()
-
+ 
         datasets_dir = Path(settings.DATASETS_DIR)
-
+ 
         if archivo and Path(archivo).exists():
             ruta = Path(archivo)
         else:
@@ -72,28 +72,28 @@ class ETLPipeline:
                 ruta = csvs[0]
             else:
                 raise FileNotFoundError("No se encontró dataset en la carpeta datasets/")
-
+ 
         self._log(f"Leyendo archivo: {ruta.name}")
-
+ 
         if ruta.suffix == '.xlsx':
             self.df_raw = pd.read_excel(ruta)
         else:
             self.df_raw = pd.read_csv(ruta, encoding='utf-8-sig')
-
+ 
         total = len(self.df_raw)
         self.log.registros_extraidos = total
         self.log.archivo_fuente = ruta.name
         self.log.save(update_fields=['registros_extraidos', 'archivo_fuente'])
-
+ 
         elapsed = round(time.time() - start, 2)
         self._log(f"Extraídos: {total} registros en {elapsed}s")
         return self.df_raw
-
+ 
     # ── TRANSFORM ──
     def transform(self):
         self._log("=== FASE TRANSFORM ===")
         df = self.df_raw.copy()
-
+ 
         # Normalizar nombres de columnas
         df.columns = (df.columns
                       .str.lower()
@@ -104,7 +104,7 @@ class ETLPipeline:
                       .str.replace(' ','_')
                       .str.replace('presion_sistolica','presion_sistolica')
                       )
-
+ 
         # Renombres específicos
         renombres = {
             'presion_sistolica': 'presion_sistolica',
@@ -115,17 +115,17 @@ class ETLPipeline:
             'imc': 'imc',
             'frecuencia_cardiaca': 'frecuencia_cardiaca',
         }
-
+ 
         # Eliminar duplicados
         antes = len(df)
         df.drop_duplicates(subset=['id_paciente'], keep='first', inplace=True)
         duplicados = antes - len(df)
         self.log.registros_duplicados = duplicados
         self._log(f"Duplicados eliminados: {duplicados}")
-
+ 
         # Convertir edad (puede venir como texto)
         df['edad'] = df['edad'].apply(self._convertir_edad)
-
+ 
         # Convertir columnas numéricas
         nums = ['presion_sistolica','presion_diastolica','frecuencia_cardiaca',
                 'peso','altura','imc','glucosa','colesterol',
@@ -133,7 +133,7 @@ class ETLPipeline:
         for col in nums:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-
+ 
         # Reemplazar outliers con NaN
         invalidos = 0
         for col, (mn, mx) in RANGOS_CLINICOS.items():
@@ -143,71 +143,74 @@ class ETLPipeline:
                 df.loc[mask, col] = np.nan
         self.log.registros_invalidos = invalidos
         self._log(f"Valores fuera de rango: {invalidos}")
-
+ 
         # Imputar nulos con mediana
         for col in nums:
             if col in df.columns:
                 df[col].fillna(df[col].median(), inplace=True)
-
+ 
         # Convertir enteros
         for col in ['edad','presion_sistolica','presion_diastolica','frecuencia_cardiaca']:
             if col in df.columns:
                 df[col] = df[col].fillna(0).astype(int)
-
+ 
         # Recalcular IMC
         df['imc'] = (df['peso'] / (df['altura'] ** 2)).round(2)
-
+ 
         # Normalizar sexo
         if 'sexo' in df.columns:
             df['sexo'] = df['sexo'].str.upper().str.strip()
             df['sexo'] = df['sexo'].map(
                 {'M':'M','F':'F','MASCULINO':'M','FEMENINO':'F'}
             ).fillna('M')
-
+ 
         # Normalizar actividad física
         if 'actividad_fisica' in df.columns:
             df['actividad_fisica'] = (df['actividad_fisica']
                 .str.lower().str.strip()
                 .map(MAP_ACTIVIDAD)
                 .fillna('sedentario'))
-
+ 
         # Normalizar diagnóstico
         if 'diagnostico_preliminar' in df.columns:
             df['diagnostico_preliminar'] = df['diagnostico_preliminar'].apply(
                 lambda x: MAP_DIAGNOSTICOS.get(str(x).lower().strip(), str(x).strip())
             )
-
-        # Normalizar riesgo
-        if 'riesgo_enfermedad' in df.columns:
-            df['riesgo_enfermedad'] = (df['riesgo_enfermedad']
-                .str.lower().str.strip()
-                .str.replace('crítico','critico'))
-            df['riesgo_enfermedad'] = df['riesgo_enfermedad'].apply(
-                lambda x: x if x in ['bajo','medio','alto','critico'] else 'bajo'
-            )
-
+ 
+        # Asegurar booleanos antes de calcular riesgo
+        for col in ['fumador', 'antecedentes_familiares']:
+            if col in df.columns:
+                df[col] = df[col].fillna(False).astype(bool)
+            else:
+                df[col] = False
+ 
+        # Calcular riesgo con reglas clínicas reales (no confiar en el Excel original)
+        from apps.ml.ml_engine import calcular_riesgo
+        df['riesgo_enfermedad'] = df.apply(calcular_riesgo, axis=1)
+ 
         # Clasificación IMC
         df['clasificacion_imc'] = df['imc'].apply(self._clasificar_imc)
-
-        # Detectar críticos
+ 
+        # Detectar críticos (coherente con riesgo_enfermedad)
         df['es_critico'] = (
+            (df['riesgo_enfermedad'] == 'critico') |
             (df['presion_sistolica'] > 180) |
             (df['glucosa'] > 300) |
             (df['saturacion_oxigeno'] < 85)
         )
-
+ 
         # Fechas
         if 'fecha_consulta' in df.columns:
             df['fecha_consulta'] = pd.to_datetime(
                 df['fecha_consulta'], errors='coerce'
             ).dt.date
             df['fecha_consulta'] = df['fecha_consulta'].fillna(date.today())
-
+ 
         # Texto nulo
         for col in ['nombres','apellidos','diagnostico_preliminar']:
             if col in df.columns:
                 df[col] = df[col].fillna('Sin información')
-
+ 
         self.df_clean = df
         self.log.registros_transformados = len(df)
         self.log.save(update_fields=[
@@ -215,15 +218,15 @@ class ETLPipeline:
         ])
         self._log(f"Transformación completa: {len(df)} registros")
         return df
-
+ 
     # ── LOAD ──
     def load(self):
         from apps.etl.models import Paciente
         self._log("=== FASE LOAD ===")
         df = self.df_clean
-
+ 
         Paciente.objects.all().delete()
-
+ 
         bulk = []
         cargados = 0
         for _, row in df.iterrows():
@@ -258,13 +261,13 @@ class ETLPipeline:
                 cargados += 1
             except Exception as e:
                 self._log(f"Error en fila: {e}")
-
+ 
         Paciente.objects.bulk_create(bulk, batch_size=200)
         self.log.registros_cargados = cargados
         self.log.save(update_fields=['registros_cargados'])
         self._log(f"Cargados en BD: {cargados}")
         return cargados
-
+ 
     # ── RUN ──
     def run(self, archivo=None):
         start = time.time()
@@ -288,14 +291,14 @@ class ETLPipeline:
             self.log.log_detalle = '\n'.join(self.detalles)
             self.log.save()
             raise
-
+ 
     # ── HELPERS ──
     def _convertir_edad(self, val):
         try:
             return int(float(val))
         except (ValueError, TypeError):
             return EDADES_TEXTO.get(str(val).lower().strip(), 0)
-
+ 
     def _clasificar_imc(self, imc):
         if pd.isna(imc):
             return 'Sin datos'
@@ -306,7 +309,7 @@ class ETLPipeline:
         elif imc < 30:
             return 'Sobrepeso'
         return 'Obesidad'
-
+ 
     def _log(self, msg):
         ts = datetime.now().strftime('%H:%M:%S')
         entry = f"[{ts}] {msg}"
