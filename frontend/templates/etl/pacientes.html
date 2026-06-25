@@ -192,7 +192,7 @@ async function predecirRiesgo() {
   const btn = document.getElementById('btnPredecir');
   const resultado = document.getElementById('prediccionResultado');
   btn.disabled = true;
-  resultado.textContent = 'Calculando...';
+  resultado.innerHTML = 'Calculando...';
 
   try {
     const payload = {
@@ -205,9 +205,32 @@ async function predecirRiesgo() {
       frecuencia_cardiaca: pacienteActual.frecuencia_cardiaca,
     };
     const res = await API.post('/api/ml/predict/', payload);
-    const riesgoPred = res.riesgo_predicho || res.prediccion || 'desconocido';
+    const riesgoPred = res.riesgo_predicho || 'desconocido';
     const badgeClass = BADGES[riesgoPred] || '';
-    resultado.innerHTML = `Predicción del modelo: <span class="badge ${badgeClass}">${riesgoPred}</span>`;
+    const probs = res.probabilidades || {};
+
+    const orden = ['bajo', 'medio', 'alto', 'critico'];
+    const filasProbas = orden
+      .filter(k => k in probs)
+      .map(k => {
+        const pct = (probs[k] * 100).toFixed(1);
+        const color = {bajo:'#2dce89', medio:'#fb8c00', alto:'#ef233c', critico:'#8b0000'}[k];
+        return `
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <small style="width:60px;text-transform:capitalize;color:#555">${k}</small>
+            <div style="flex:1;background:#f0f4ff;border-radius:8px;height:10px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:${color}"></div>
+            </div>
+            <small style="width:48px;text-align:right;font-weight:600">${pct}%</small>
+          </div>`;
+      }).join('');
+
+    resultado.innerHTML = `
+      <div>
+        Predicción: <span class="badge ${badgeClass}">${riesgoPred}</span>
+        <span style="color:#8d99ae;font-size:.75rem;margin-left:6px">(modelo: ${res.modelo_usado || ''})</span>
+        ${filasProbas}
+      </div>`;
   } catch(e) {
     resultado.innerHTML = '<span style="color:#ef233c">No se pudo calcular. ¿El modelo está entrenado?</span>';
     console.error(e);
