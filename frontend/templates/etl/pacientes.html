@@ -50,12 +50,36 @@
     </div>
   </div>
 </div>
+
+<!-- Modal de detalle de paciente -->
+<div id="pacienteModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #f0f4ff;position:sticky;top:0;background:#fff;border-radius:16px 16px 0 0">
+      <span style="font-weight:700;font-size:1.05rem" id="modalNombre">Paciente</span>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#8d99ae;line-height:1">×</button>
+    </div>
+
+    <div style="padding:24px" id="modalBody">
+      <div style="text-align:center;padding:32px">
+        <div style="width:36px;height:36px;border:3px solid #e8eeff;border-top-color:#1e4db7;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div>
+      </div>
+    </div>
+
+    <div style="padding:20px 24px;border-top:1px solid #f0f4ff;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn-primary-custom" id="btnPredecir" onclick="predecirRiesgo()" style="padding:10px 20px">
+        🔮 Predecir Riesgo
+      </button>
+      <span id="prediccionResultado" style="font-weight:600"></span>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const BADGES = { bajo:'badge-bajo', medio:'badge-medio', alto:'badge-alto', critico:'badge-critico' };
 let page = 1, totalPages = 1, search = '', riesgo = '';
+let pacienteActual = null;
 
 async function loadPacientes() {
   try {
@@ -74,7 +98,7 @@ async function loadPacientes() {
     }
 
     tbody.innerHTML = items.map(p => `
-      <tr>
+      <tr onclick="openPaciente(${p.id})" style="cursor:pointer" class="paciente-row">
         <td><small style="color:#8d99ae">${p.id_paciente}</small></td>
         <td><strong>${p.nombres} ${p.apellidos}</strong></td>
         <td>${p.edad}</td>
@@ -107,6 +131,93 @@ document.getElementById('searchInput').addEventListener('input', e => {
 
 document.getElementById('riesgoFilter').addEventListener('change', e => {
   riesgo = e.target.value; page = 1; loadPacientes();
+});
+
+// ── Modal de detalle ──
+async function openPaciente(id) {
+  document.getElementById('pacienteModal').style.display = 'flex';
+  document.getElementById('modalNombre').textContent = 'Cargando...';
+  document.getElementById('prediccionResultado').textContent = '';
+  document.getElementById('modalBody').innerHTML = `
+    <div style="text-align:center;padding:32px">
+      <div style="width:36px;height:36px;border:3px solid #e8eeff;border-top-color:#1e4db7;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div>
+    </div>`;
+
+  try {
+    const p = await API.get(`/api/etl/pacientes/${id}/`);
+    pacienteActual = p;
+    document.getElementById('modalNombre').textContent = `${p.nombres} ${p.apellidos}`;
+
+    const filas = [
+      ['Edad', `${p.edad} años`], ['Sexo', p.sexo === 'M' ? 'Masculino' : 'Femenino'],
+      ['Peso', `${p.peso} kg`], ['Altura', `${p.altura} m`],
+      ['IMC', `${p.imc} (${p.clasificacion_imc})`],
+      ['Presión sistólica', `${p.presion_sistolica} mmHg`],
+      ['Presión diastólica', `${p.presion_diastolica} mmHg`],
+      ['Frecuencia cardíaca', `${p.frecuencia_cardiaca} lpm`],
+      ['Glucosa', `${p.glucosa} mg/dL`], ['Colesterol', `${p.colesterol} mg/dL`],
+      ['Saturación de oxígeno', `${p.saturacion_oxigeno}%`],
+      ['Temperatura', `${p.temperatura} °C`],
+      ['Antecedentes familiares', p.antecedentes_familiares ? 'Sí' : 'No'],
+      ['Fumador', p.fumador ? 'Sí' : 'No'],
+      ['Consumo de alcohol', p.consumo_alcohol ? 'Sí' : 'No'],
+      ['Actividad física', p.actividad_fisica],
+      ['Diagnóstico preliminar', p.diagnostico_preliminar],
+      ['Riesgo registrado', `<span class="badge ${BADGES[p.riesgo_enfermedad]||''}">${p.riesgo_enfermedad}</span>`],
+      ['Estado crítico', p.es_critico ? '🚨 Sí' : 'No'],
+      ['Fecha de consulta', p.fecha_consulta],
+    ];
+
+    document.getElementById('modalBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px">
+        ${filas.map(([label, val]) => `
+          <div>
+            <small style="color:#8d99ae;display:block;margin-bottom:2px">${label}</small>
+            <div style="font-weight:600">${val}</div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    document.getElementById('modalBody').innerHTML = '<p style="color:#ef233c">Error al cargar el paciente.</p>';
+    console.error(e);
+  }
+}
+
+function closeModal() {
+  document.getElementById('pacienteModal').style.display = 'none';
+  pacienteActual = null;
+}
+
+async function predecirRiesgo() {
+  if (!pacienteActual) return;
+  const btn = document.getElementById('btnPredecir');
+  const resultado = document.getElementById('prediccionResultado');
+  btn.disabled = true;
+  resultado.textContent = 'Calculando...';
+
+  try {
+    const payload = {
+      imc: pacienteActual.imc,
+      edad: pacienteActual.edad,
+      glucosa: pacienteActual.glucosa,
+      colesterol: pacienteActual.colesterol,
+      presion_sistolica: pacienteActual.presion_sistolica,
+      presion_diastolica: pacienteActual.presion_diastolica,
+      frecuencia_cardiaca: pacienteActual.frecuencia_cardiaca,
+    };
+    const res = await API.post('/api/ml/predict/', payload);
+    const riesgoPred = res.riesgo_predicho || res.prediccion || 'desconocido';
+    const badgeClass = BADGES[riesgoPred] || '';
+    resultado.innerHTML = `Predicción del modelo: <span class="badge ${badgeClass}">${riesgoPred}</span>`;
+  } catch(e) {
+    resultado.innerHTML = '<span style="color:#ef233c">No se pudo calcular. ¿El modelo está entrenado?</span>';
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('pacienteModal').addEventListener('click', e => {
+  if (e.target.id === 'pacienteModal') closeModal();
 });
 
 document.addEventListener('DOMContentLoaded', loadPacientes);
