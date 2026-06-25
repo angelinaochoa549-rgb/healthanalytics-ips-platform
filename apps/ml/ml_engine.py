@@ -32,13 +32,17 @@ def _get_dir():
 
 def calcular_riesgo(row):
     score = 0
-    if row['presion_sistolica'] > 140: score += 2
-    if row['glucosa'] > 126: score += 2
-    if row['imc'] > 30: score += 1
+    if row['presion_sistolica'] > 160: score += 2
+    if row['glucosa'] > 200: score += 2
+    if row['imc'] > 35: score += 1
     if row['fumador']: score += 1
     if row['antecedentes_familiares']: score += 1
-    if row['colesterol'] > 200: score += 1
-    if row['frecuencia_cardiaca'] > 100: score += 1
+    if row['colesterol'] > 240: score += 1
+    if row['frecuencia_cardiaca'] > 110: score += 1
+    if score >= 6: return 'critico'
+    if score >= 4: return 'alto'
+    if score >= 2: return 'medio'
+    return 'bajo'
 
     if score >= 5: return 'critico'
     if score >= 3: return 'alto'
