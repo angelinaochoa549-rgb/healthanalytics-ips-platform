@@ -159,6 +159,13 @@ def pacientes_list(request):
     return Response({
         'count': total,
         'results': data,
+        '_debug': {
+            'riesgo_raw': request.GET.get('riesgo', ''),
+            'search_raw': request.GET.get('search', ''),
+            'page_raw': request.GET.get('page', ''),
+            'todas_query': dict(request.GET),
+            'qs_count_sin_filtro': Paciente.objects.count(),
+        },
     })
 
 
