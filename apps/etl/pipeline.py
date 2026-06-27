@@ -154,7 +154,15 @@ class ETLPipeline:
             if col in df.columns:
                 mediana = df[col].median()
                 df[col] = df[col].fillna(mediana)
- 
+
+        # Intercambiar presion_diastolica >= presion_sistolica (médicamente imposible)
+        if 'presion_sistolica' in df.columns and 'presion_diastolica' in df.columns:
+            mask_invertida = df['presion_diastolica'] >= df['presion_sistolica']
+            if mask_invertida.any():
+                df.loc[mask_invertida, ['presion_sistolica', 'presion_diastolica']] = \
+                    df.loc[mask_invertida, ['presion_diastolica', 'presion_sistolica']].values
+                self._log(f"Presiones invertidas corregidas: {mask_invertida.sum()} casos")
+
         # Convertir enteros (ya no deberían quedar NaN tras la imputación anterior)
         for col in ['edad','presion_sistolica','presion_diastolica','frecuencia_cardiaca']:
             if col in df.columns:

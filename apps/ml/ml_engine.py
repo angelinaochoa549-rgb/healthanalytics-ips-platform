@@ -44,11 +44,6 @@ def calcular_riesgo(row):
     if score >= 2: return 'medio'
     return 'bajo'
 
-    if score >= 5: return 'critico'
-    if score >= 3: return 'alto'
-    if score >= 1: return 'medio'
-    return 'bajo'
-
 
 def entrenar_modelos():
     from apps.etl.models import Paciente

@@ -130,7 +130,7 @@ def pacientes_list(request):
             Q(diagnostico_preliminar__icontains=search)
         )
     if riesgo:
-        qs = qs.filter(riesgo_enfermedad=riesgo)
+        qs = qs.filter(riesgo_enfermedad__iexact=riesgo)
 
     total = qs.count()
     start = (page - 1) * page_size
